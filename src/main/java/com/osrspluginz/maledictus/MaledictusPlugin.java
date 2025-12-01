@@ -3,10 +3,12 @@ package com.osrspluginz.maledictus;
 import com.google.inject.Provides;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Client;
 import net.runelite.api.ChatMessageType;
+import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.WorldType; // Added
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.GameStateChanged; // Added
 import net.runelite.api.events.GameTick;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.callback.ClientThread;
@@ -28,7 +30,6 @@ import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.WorldUtil;
 import net.runelite.http.api.worlds.World;
 import net.runelite.http.api.worlds.WorldResult;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,11 +38,11 @@ import java.awt.image.BufferedImage;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.EnumSet; // Added
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.ArrayList;
-import java.util.Arrays;
 
 @Slf4j
 @PluginDescriptor(
@@ -61,26 +62,6 @@ public class MaledictusPlugin extends Plugin
     // Time threshold for skull colors (in seconds)
     public static final long TIME_RED_THRESHOLD_SECS = Duration.ofMinutes(15).getSeconds(); // 15 mins (900s)
 
-    // --- COMPLETE LIST OF MEMBER WORLDS (UPDATED/CONFIRMED) ---
-    private static final int[] MEMBER_WORLDS = {
-            302,303,304,305,306,307,309,310,311,312,313,314,315,317,318,320,321,322,
-            323,324,325,327,328,329,330,331,332,333,334,336,337,338,339,340,341,342,343,344,346,347,348,349,350,351,
-            352,353,354,355,356,357,358,359,360,361,362,363,364,365,366,367,368,369,370,371,373,374,375,376,377,
-            378,385,386,387,388,389,390,391,394,395,396,402,403,404,405,406,407,408,409,410,411,412,415,416,420,421,
-            422,423,424,425,426,428,429,438,439,440,441,442,443,444,445,446,447,448,449,450,457,458,459,461,462,463,
-            464,465,466,467,470,471,472,473,474,475,476,477,478,479,480,481,482,484,485,486,487,488,489,490,491,492,
-            493,494,495,496,500,501,503,504,505,506,507,508,509,510,511,512,513,514,515,516,517,518,519,520,521,522,
-            523,524,525,526,527,528,529,531,532,533,534,535,536,538,541,542,543,544,545,546,547,550,551,556,557,558,
-            559,562,563,564,566,567,569,570,573,574,575,578,582,590,591,592,593,594,595,599,600,601,602,603,604,605,
-            606,607,608,609,610,611,612,613,614,615,616,617,618,619,620,621,622,623,624,625,626,627,628
-    };
-
-    // Quick check if the player is in one of the worlds we track
-    private final boolean isPlayerInTrackedWorld(int worldId) {
-        // Use binary search for O(log n) lookup, assuming MEMBER_WORLDS is sorted.
-        return Arrays.binarySearch(MEMBER_WORLDS, worldId) >= 0;
-    }
-
     private net.runelite.api.World quickHopTargetWorld;
     int displaySwitcherAttempts = 0;
 
@@ -95,7 +76,6 @@ public class MaledictusPlugin extends Plugin
     @Inject private ClientThread clientThread;
     @Inject private WorldService worldService;
     @Inject private ChatMessageManager chatMessageManager;
-
 
     private NavigationButton navButton;
     private final Map<Integer, WorldTimer> worldTimers = new HashMap<>();
@@ -114,7 +94,7 @@ public class MaledictusPlugin extends Plugin
     @Override
     protected void startUp()
     {
-        // Image loading paths reverted to include the leading slash (Fixes previous break)
+        // Image loading paths
         skullWhite = ImageUtil.loadImageResource(getClass(), "/skullwhite.png");
         skullRed = ImageUtil.loadImageResource(getClass(), "/skullred.png");
         skullPanel = ImageUtil.loadImageResource(getClass(), "/skullpanel.png");
@@ -129,15 +109,10 @@ public class MaledictusPlugin extends Plugin
                 .build();
         clientToolbar.addNavigation(navButton);
 
-        // --- Initialization: Add all potential worlds with 'No Data' marker ---
-        // Ensure the list is sorted for binary search utility.
-        Arrays.sort(MEMBER_WORLDS);
-        for (int worldId : MEMBER_WORLDS)
-        {
-            worldTimers.put(worldId, new WorldTimer(worldId, Instant.MIN));
-        }
+        // --- Initialization: Dynamic World Loading ---
+        loadWorldList();
 
-        log.info("Maledictus Timer started, tracking {} member worlds.", MEMBER_WORLDS.length);
+        log.info("Maledictus Timer started.");
     }
 
     @Override
@@ -154,6 +129,46 @@ public class MaledictusPlugin extends Plugin
         skullPanel = null;
 
         log.info("Maledictus Timer stopped.");
+    }
+
+    /**
+     * Dynamically fetches the world list from the client and populates the timer map
+     * with valid Members worlds. This replaces the hardcoded array.
+     */
+    private void loadWorldList()
+    {
+        net.runelite.api.World[] worlds = client.getWorldList();
+
+        if (worlds == null)
+        {
+            return; // Client hasn't loaded worlds yet; we will retry on GameStateChanged
+        }
+
+        int count = 0;
+        for (net.runelite.api.World world : worlds)
+        {
+            EnumSet<WorldType> types = world.getTypes();
+
+            // Filter: Must be Members, and NOT a temporary game mode (PVP Arena, Quest Speedrun, Beta, etc)
+            if (types.contains(WorldType.MEMBERS)
+                    && !types.contains(WorldType.QUEST_SPEEDRUNNING)
+                    && !types.contains(WorldType.PVP_ARENA)
+                    && !types.contains(WorldType.NOSAVE_MODE)
+                    && !types.contains(WorldType.TOURNAMENT_WORLD)
+                    && !types.contains(WorldType.FRESH_START_WORLD)) // Optional: exclude Fresh Start if desired
+            {
+                // Verify the world is not null/offline and add if missing
+                if (worldTimers.putIfAbsent(world.getId(), new WorldTimer(world.getId(), Instant.MIN)) == null)
+                {
+                    count++;
+                }
+            }
+        }
+
+        if (count > 0)
+        {
+            log.debug("Loaded {} new member worlds.", count);
+        }
     }
 
     // --- CONSOLE MESSAGE HELPER ---
@@ -378,6 +393,16 @@ public class MaledictusPlugin extends Plugin
     }
 
     // --- WORLD HOPPING LOGIC (Merged for thread safety) ---
+
+    @Subscribe
+    public void onGameStateChanged(GameStateChanged event)
+    {
+        // Failsafe: If worlds failed to load at startup (null), try loading them when game state changes (e.g. login)
+        if (worldTimers.isEmpty() && client.getGameState().getState() >= GameState.LOGIN_SCREEN.getState())
+        {
+            loadWorldList();
+        }
+    }
 
     @Subscribe
     public void onGameTick(GameTick gameTick)
