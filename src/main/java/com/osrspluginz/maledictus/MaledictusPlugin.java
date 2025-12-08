@@ -10,7 +10,7 @@ import net.runelite.api.WorldType;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
-import net.runelite.api.widgets.WidgetInfo;
+import net.runelite.api.widgets.ComponentID;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageBuilder;
@@ -497,7 +497,7 @@ public class MaledictusPlugin extends Plugin
             return;
         }
 
-        if (client.getWidget(WidgetInfo.WORLD_SWITCHER_LIST) == null)
+        if (client.getWidget(ComponentID.WORLD_SWITCHER_WORLD_LIST) == null)
         {
             client.openWorldHopper();
 
