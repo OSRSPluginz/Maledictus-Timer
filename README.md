@@ -1,4 +1,4 @@
-# Maledictus Tracker
+# Maledictus Timer
 
 This plugin displays observations from player clients to track Revenant maledictus spawns across all worlds. It logs confirmed sightings, tracks upcoming spawn times, and provides icons to illustrate the timer.
 ## Features

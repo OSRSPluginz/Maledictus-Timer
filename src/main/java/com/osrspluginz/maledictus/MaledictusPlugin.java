@@ -47,9 +47,9 @@ import java.util.Map;
 
 @Slf4j
 @PluginDescriptor(
-        name = "Maledictus Timer",
-        description = "Tracks Maledictus spawn/death times",
-        tags = {"boss", "mal", "timer", "gwd"}
+        name = "maledictus-timer",
+        description = "Tracks Maledictus spawns, predicts next spawn, and shows world list readiness. Provides overlay and panel features.",
+        tags = {"pvp", "pk", "pvm", "revenants", "maledictus", "wildy", "wilderness", "rev caves"}
 )
 public class MaledictusPlugin extends Plugin
 {
