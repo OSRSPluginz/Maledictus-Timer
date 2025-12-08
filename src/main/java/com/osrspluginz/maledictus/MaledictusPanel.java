@@ -7,9 +7,9 @@ import javax.inject.Inject;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class MaledictusPanel extends PluginPanel
 {
@@ -21,6 +21,10 @@ public class MaledictusPanel extends PluginPanel
     private final JCheckBox showClosestCheck;
     private final JCheckBox showOverlayCheck;
 
+    // Manual Entry Inputs
+    private final JTextField worldInput;
+    private final JTextField timeInput;
+
     @Inject
     public MaledictusPanel(MaledictusPlugin plugin)
     {
@@ -31,7 +35,12 @@ public class MaledictusPanel extends PluginPanel
         setBackground(ColorScheme.DARK_GRAY_COLOR);
         setLayout(new BorderLayout());
 
-        // --- Header Panel (North) ---
+        // --- Top Container (Holds Header + Manual Entry) ---
+        JPanel topContainer = new JPanel();
+        topContainer.setLayout(new BoxLayout(topContainer, BoxLayout.Y_AXIS));
+        topContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
+
+        // --- Header Panel (Checkboxes) ---
         JPanel headerPanel = new JPanel(new GridBagLayout());
         headerPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
         GridBagConstraints hConstraints = new GridBagConstraints();
@@ -56,8 +65,47 @@ public class MaledictusPanel extends PluginPanel
         showClosestCheck.setOpaque(false);
         headerPanel.add(showClosestCheck, hConstraints);
 
-        headerPanel.setBorder(new EmptyBorder(0, 0, 10, 0));
-        add(headerPanel, BorderLayout.NORTH);
+        headerPanel.setBorder(new EmptyBorder(0, 0, 5, 0));
+        topContainer.add(headerPanel);
+
+        // --- Manual Entry Panel ---
+        JPanel manualEntryPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 4, 0));
+        manualEntryPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        manualEntryPanel.setBorder(new EmptyBorder(0, 0, 10, 0));
+
+        // World Input
+        JLabel wLabel = new JLabel("W:");
+        wLabel.setForeground(Color.WHITE);
+        manualEntryPanel.add(wLabel);
+
+        worldInput = new JTextField(3);
+        worldInput.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        worldInput.setForeground(Color.WHITE);
+        manualEntryPanel.add(worldInput);
+
+        // Time Input
+        JLabel tLabel = new JLabel("Mins:");
+        tLabel.setForeground(Color.WHITE);
+        manualEntryPanel.add(tLabel);
+
+        timeInput = new JTextField(3);
+        timeInput.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        timeInput.setForeground(Color.WHITE);
+        manualEntryPanel.add(timeInput);
+
+        // Add Button (Now a local variable)
+        final JButton addTimerButton = new JButton("+");
+        addTimerButton.setPreferredSize(new Dimension(55, 20));
+        addTimerButton.setFocusable(false);
+        // OPTIMIZED: Statement lambda replaced with expression lambda calling a streamlined method
+        addTimerButton.addActionListener(e -> addManualTimer());
+        manualEntryPanel.add(addTimerButton);
+
+        topContainer.add(manualEntryPanel);
+
+        // Add the top container to the North
+        add(topContainer, BorderLayout.NORTH);
+
 
         // --- List Container Setup (Center) ---
         listContainer.setLayout(new GridBagLayout());
@@ -81,14 +129,39 @@ public class MaledictusPanel extends PluginPanel
         updatePanel();
     }
 
+    private void addManualTimer()
+    {
+        try
+        {
+            String wText = worldInput.getText().trim();
+            String tText = timeInput.getText().trim();
+
+            if (wText.isEmpty() || tText.isEmpty()) return;
+
+            int world = Integer.parseInt(wText);
+            int mins = Integer.parseInt(tText);
+
+            // Call plugin method
+            plugin.setManualTimer(world, mins);
+
+            // Clear inputs
+            worldInput.setText("");
+            timeInput.setText("");
+        }
+        catch (NumberFormatException ex)
+        {
+            // Ignore invalid input
+        }
+    }
+
     public void updatePanel()
     {
         listContainer.removeAll();
 
         List<MaledictusPlugin.WorldTimer> timers = plugin.getAllWorldTimers();
 
-        List<MaledictusPlugin.WorldTimer> sortedTimers = timers.stream()
-                .collect(Collectors.toList());
+        // OPTIMIZED: Replaced stream() with ArrayList constructor
+        List<MaledictusPlugin.WorldTimer> sortedTimers = new ArrayList<>(timers);
 
         if (showClosestCheck.isSelected())
         {

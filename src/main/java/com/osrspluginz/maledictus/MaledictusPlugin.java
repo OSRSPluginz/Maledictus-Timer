@@ -6,9 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
-import net.runelite.api.WorldType; // Added
+import net.runelite.api.WorldType;
 import net.runelite.api.events.ChatMessage;
-import net.runelite.api.events.GameStateChanged; // Added
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.callback.ClientThread;
@@ -34,12 +34,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
+import javax.swing.SwingUtilities; // Added for manual timer update
 import java.awt.image.BufferedImage;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.EnumSet; // Added
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -201,6 +202,22 @@ public class MaledictusPlugin extends Plugin
         Instant nextEligibility = spawnTime.plus(RESET_TIMER);
         worldTimers.put(world, new WorldTimer(world, nextEligibility));
         log.info("Maledictus spawned on W{}. Next eligibility for spawn begins at {}", world, nextEligibility);
+    }
+
+    /**
+     * Manually sets a timer for a specific world based on minutes remaining.
+     * @param worldId The world number.
+     * @param minutesRemaining Minutes left until eligible (e.g. 45 or 13).
+     */
+    public void setManualTimer(int worldId, int minutesRemaining)
+    {
+        // Calculate eligibility time based on minutes remaining from NOW.
+        Instant nextEligibility = Instant.now().plus(Duration.ofMinutes(minutesRemaining));
+
+        worldTimers.put(worldId, new WorldTimer(worldId, nextEligibility));
+
+        // Force the panel to redraw immediately
+        SwingUtilities.invokeLater(() -> panel.updatePanel());
     }
 
     @Schedule(
